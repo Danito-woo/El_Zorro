@@ -5,9 +5,8 @@ from gui import MainWindow
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    # You might want to set application info (optional)
-    # app.setApplicationName("El Zorro")
-    # app.setOrganizationName("YourNameOrOrg") # Helps with settings paths etc.
+    app.setApplicationName("El Zorro")
+    app.setOrganizationName("JejejeORG") # You might add some love here
 
     window = MainWindow()
     window.show()

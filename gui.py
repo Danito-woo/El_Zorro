@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
         self.output_label = QLabel("Guardar en:")
         self.output_path_display = QLineEdit()
         self.output_path_display.setReadOnly(True)
-        default_output = r"E:\kemn\downloads"
+        default_output = r"E:\El_Zorro\downloads"
         if not os.path.exists(os.path.join(os.path.expanduser("~"), "Downloads")):
              default_output = os.path.join(os.path.expanduser("~"), "ElZorro_Descargas")
         self.output_path_display.setText(os.path.abspath(default_output))
@@ -84,6 +84,31 @@ class MainWindow(QMainWindow):
         output_layout.addWidget(self.output_path_display, 1)
         output_layout.addWidget(self.browse_button)
         left_v_layout.addLayout(output_layout)
+
+        # --- Gemini API Key Input (only if not in .env) ---
+        env_path = os.path.join(os.path.dirname(__file__), ".env")
+        has_api_key = False
+        if os.path.exists(env_path):
+            try:
+                with open(env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip().startswith("GEMINI_API_KEY=") and len(line.strip().split("=")[1]) > 0:
+                            has_api_key = True
+                            break
+            except Exception:
+                has_api_key = False
+
+        if not has_api_key:
+            gemini_layout = QHBoxLayout()
+            self.gemini_label = QLabel("Gemini API Key:")
+            self.gemini_input = QLineEdit()
+            self.gemini_input.setPlaceholderText("Pega tu API key de Gemini aquí")
+            self.gemini_save_button = QPushButton("Guardar en .env")
+            self.gemini_save_button.clicked.connect(self.save_gemini_key_to_env)
+            gemini_layout.addWidget(self.gemini_label)
+            gemini_layout.addWidget(self.gemini_input, 1)
+            gemini_layout.addWidget(self.gemini_save_button)
+            left_v_layout.addLayout(gemini_layout)
 
         # Buttons
         button_layout = QHBoxLayout()
@@ -143,6 +168,12 @@ class MainWindow(QMainWindow):
         self.download_button.clicked.connect(self.start_download)
         self.cancel_button.clicked.connect(self.cancel_download)
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        # Permite acceso global desde QApplication
+        app = QApplication.instance()
+        app.mainWindow = self
+
     def browse_output_directory(self):
         start_dir = self.output_path_display.text()
         if not os.path.isdir(start_dir):
@@ -150,6 +181,28 @@ class MainWindow(QMainWindow):
         directory = QFileDialog.getExistingDirectory(self, "Seleccionar Directorio de Salida", start_dir)
         if directory:
             self.output_path_display.setText(os.path.abspath(directory))
+
+    def save_gemini_key_to_env(self):
+        key = self.gemini_input.text().strip()
+        if not key:
+            QMessageBox.warning(self, "API Key vacía", "Por favor, ingresa una API Key de Gemini válida.")
+            return
+        env_path = os.path.join(os.path.dirname(__file__), ".env")
+        # Lee el .env actual
+        lines = []
+        if os.path.exists(env_path):
+            with open(env_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        found = False
+        for i, line in enumerate(lines):
+            if line.startswith("GEMINI_API_KEY="):
+                lines[i] = f"GEMINI_API_KEY={key}\n"
+                found = True
+        if not found:
+            lines.append(f"GEMINI_API_KEY={key}\n")
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+        QMessageBox.information(self, "Guardado", "API Key de Gemini guardada en .env correctamente.")
 
     def start_download(self):
         service = self.service_input.text().strip().lower()
@@ -417,6 +470,31 @@ class MainWindow(QMainWindow):
         self.progress_bar.setFormat(final_status_text) # Update overall progress bar text
         self.set_ui_running(False) # Re-enable UI
         self.worker = None
+
+    def show_gemini_groups_popup(self, gemini_groups):
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem, QLabel, QPushButton
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Organización IA: Grupos sugeridos por Gemini")
+        layout = QVBoxLayout(dialog)
+        label = QLabel("Grupos y posts sugeridos por Gemini:")
+        layout.addWidget(label)
+        table = QTableWidget()
+        table.setColumnCount(2)
+        table.setHorizontalHeaderLabels(["Grupo (Carpeta)", "Posts incluidos"])
+        groups = gemini_groups.get('groups', [])
+        table.setRowCount(len(groups))
+        for i, group in enumerate(groups):
+            group_name = group.get('folder', '')
+            posts = group.get('order', [])
+            table.setItem(i, 0, QTableWidgetItem(group_name))
+            table.setItem(i, 1, QTableWidgetItem("\n".join(posts)))
+        table.resizeColumnsToContents()
+        layout.addWidget(table)
+        btn = QPushButton("Cerrar")
+        btn.clicked.connect(dialog.accept)
+        layout.addWidget(btn)
+        dialog.setLayout(layout)
+        dialog.exec()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
